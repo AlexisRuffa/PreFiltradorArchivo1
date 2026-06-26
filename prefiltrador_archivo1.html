@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pre-filtrador Archivo 1 — DIA x PedidosYa</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: #0f1117;
+    color: #e8eaf0;
+    min-height: 100vh;
+    padding: 32px 24px;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 36px;
+  }
+
+  .logo {
+    width: 42px;
+    height: 42px;
+    background: linear-gradient(135deg, #e63946 0%, #c1121f 100%);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+  }
+
+  header h1 {
+    font-size: 18px;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: -0.3px;
+  }
+
+  header p {
+    font-size: 12px;
+    color: #6b7280;
+    margin-top: 2px;
+  }
+
+  .badge {
+    margin-left: auto;
+    background: #1c1f2b;
+    border: 1px solid #2d3148;
+    color: #6b7280;
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    white-space: nowrap;
+  }
+
+  .steps {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .step {
+    background: #1a1d2e;
+    border: 1px solid #252840;
+    border-radius: 12px;
+    padding: 20px;
+    position: relative;
+    transition: border-color 0.2s;
+  }
+
+  .step.active { border-color: #e63946; }
+  .step.done   { border-color: #22c55e; }
+  .step.locked { opacity: 0.45; pointer-events: none; }
+
+  .step-num {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: #4b5563;
+    margin-bottom: 6px;
+  }
+
+  .step.active .step-num { color: #e63946; }
+  .step.done   .step-num { color: #22c55e; }
+
+  .step h2 {
+    font-size: 14px;
+    font-weight: 600;
+    color: #e8eaf0;
+    margin-bottom: 4px;
+  }
+
+  .step p {
+    font-size: 12px;
+    color: #6b7280;
+    line-height: 1.5;
+  }
+
+  .drop-zone {
+    margin-top: 14px;
+    border: 1.5px dashed #2d3148;
+    border-radius: 8px;
+    padding: 18px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: #0f1117;
+  }
+
+  .drop-zone:hover, .drop-zone.dragover {
+    border-color: #e63946;
+    background: #1a0d10;
+  }
+
+  .drop-zone.loaded {
+    border-color: #22c55e;
+    border-style: solid;
+    background: #0d1a10;
+  }
+
+  .drop-zone input { display: none; }
+
+  .drop-icon { font-size: 24px; margin-bottom: 6px; }
+
+  .drop-label {
+    font-size: 12px;
+    color: #6b7280;
+  }
+
+  .drop-label strong {
+    color: #e63946;
+    cursor: pointer;
+  }
+
+  .drop-zone.loaded .drop-label { color: #22c55e; }
+
+  .file-info {
+    margin-top: 10px;
+    font-size: 11px;
+    color: #4b5563;
+    display: none;
+  }
+
+  .file-info.show { display: block; }
+
+  /* Stats pill */
+  .stat-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #0f1117;
+    border: 1px solid #252840;
+    border-radius: 20px;
+    padding: 4px 12px;
+    font-size: 11px;
+    color: #9ca3af;
+    margin-top: 10px;
+  }
+
+  .stat-pill span { color: #fff; font-weight: 600; }
+
+  /* Acción central */
+  .action-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .btn {
+    height: 44px;
+    padding: 0 28px;
+    border-radius: 8px;
+    border: none;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .btn-primary {
+    background: #e63946;
+    color: #fff;
+  }
+
+  .btn-primary:hover:not(:disabled) { background: #c1121f; }
+
+  .btn-primary:disabled {
+    background: #2d1a1d;
+    color: #6b7280;
+    cursor: not-allowed;
+  }
+
+  .btn-secondary {
+    background: #1a1d2e;
+    color: #9ca3af;
+    border: 1px solid #252840;
+    display: none;
+  }
+
+  .btn-secondary:hover { background: #252840; color: #e8eaf0; }
+  .btn-secondary.show { display: flex; }
+
+  /* Log / resultado */
+  .log-box {
+    background: #1a1d2e;
+    border: 1px solid #252840;
+    border-radius: 12px;
+    padding: 20px;
+    display: none;
+  }
+
+  .log-box.show { display: block; }
+
+  .log-title {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: #4b5563;
+    margin-bottom: 14px;
+  }
+
+  .log-line {
+    font-size: 13px;
+    color: #9ca3af;
+    padding: 4px 0;
+    border-bottom: 1px solid #1c1f2b;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .log-line:last-child { border-bottom: none; }
+
+  .log-line .val {
+    font-weight: 600;
+    color: #e8eaf0;
+  }
+
+  .log-line .val.red   { color: #e63946; }
+  .log-line .val.green { color: #22c55e; }
+  .log-line .val.yellow{ color: #f59e0b; }
+
+  /* Progress bar */
+  .progress-wrap {
+    height: 4px;
+    background: #252840;
+    border-radius: 2px;
+    margin: 16px 0;
+    overflow: hidden;
+    display: none;
+  }
+
+  .progress-wrap.show { display: block; }
+
+  .progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #e63946, #f87171);
+    border-radius: 2px;
+    width: 0%;
+    transition: width 0.3s;
+  }
+
+  .status-msg {
+    font-size: 12px;
+    color: #6b7280;
+    margin-top: 8px;
+    min-height: 18px;
+  }
+
+  .check { color: #22c55e; }
+  .cross { color: #e63946; }
+
+  @media (max-width: 600px) {
+    .steps { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">⚡</div>
+  <div>
+    <h1>Pre-filtrador Archivo 1</h1>
+    <p>Reduce el catálogo al universo de la semana promocional</p>
+  </div>
+  <div class="badge">DIA × PedidosYa</div>
+</header>
+
+<div class="steps">
+
+  <!-- PASO 1: Archivo 2 (primero, porque define los SKUs que necesitamos) -->
+  <div class="step active" id="step1">
+    <div class="step-num">Paso 1</div>
+    <h2>Archivo 2 — Teórico / Ideal</h2>
+    <p>El que tiene los SKUs promocionales con PVP Fide y PVP Reg.</p>
+    <div class="drop-zone" id="drop2" onclick="document.getElementById('file2').click()">
+      <div class="drop-icon">📋</div>
+      <div class="drop-label">Arrastrá el archivo o <strong>seleccionalo</strong></div>
+      <input type="file" id="file2" accept=".xlsx">
+    </div>
+    <div class="file-info" id="info2"></div>
+  </div>
+
+  <!-- PASO 2: Archivo 1 -->
+  <div class="step locked" id="step2">
+    <div class="step-num">Paso 2</div>
+    <h2>Archivo 1 — Sistema (catálogo completo)</h2>
+    <p>El catálogo completo. Este es el que vamos a reducir.</p>
+    <div class="drop-zone" id="drop1" onclick="document.getElementById('file1').click()">
+      <div class="drop-icon">🗂️</div>
+      <div class="drop-label">Arrastrá el archivo o <strong>seleccionalo</strong></div>
+      <input type="file" id="file1" accept=".xlsx">
+    </div>
+    <div class="file-info" id="info1"></div>
+  </div>
+
+</div>
+
+<div class="action-row">
+  <button class="btn btn-primary" id="btnFiltrar" disabled onclick="filtrar()">
+    ⚡ Generar Archivo 1 reducido
+  </button>
+  <button class="btn btn-secondary" id="btnReset" onclick="reset()">
+    ↺ Reiniciar
+  </button>
+</div>
+
+<div class="progress-wrap" id="progressWrap">
+  <div class="progress-bar" id="progressBar"></div>
+</div>
+<div class="status-msg" id="statusMsg"></div>
+
+<div class="log-box" id="logBox">
+  <div class="log-title">📊 Resultado del filtrado</div>
+  <div id="logLines"></div>
+</div>
+
+<script>
+let data2 = null; // Archivo 2 (define SKUs)
+let data1 = null; // Archivo 1 (catálogo completo)
+
+// ── Drag & drop ──────────────────────────────────────────────
+function setupDrop(dropId, inputId, slot) {
+  const zone = document.getElementById(dropId);
+  const input = document.getElementById(inputId);
+
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.classList.remove('dragover');
+    const file = e.dataTransfer.files[0];
+    if (file) readFile(file, slot);
+  });
+
+  input.addEventListener('change', () => {
+    if (input.files[0]) readFile(input.files[0], slot);
+  });
+}
+
+setupDrop('drop2', 'file2', 2);
+setupDrop('drop1', 'file1', 1);
+
+// ── Leer archivo ─────────────────────────────────────────────
+function readFile(file, slot) {
+  setStatus(`Leyendo ${file.name}...`);
+  const reader = new FileReader();
+  reader.onload = e => {
+    const wb = XLSX.read(e.target.result, { type: 'array', cellDates: true });
+
+    if (slot === 2) {
+      // Archivo 2: primera hoja, headers en fila 0
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      data2 = XLSX.utils.sheet_to_json(ws, { defval: '' });
+      showInfo('info2', 'drop2', 'step1', file.name, data2.length, 'Archivo 2 listo ✓');
+      // Habilitar paso 2
+      document.getElementById('step2').classList.remove('locked');
+      document.getElementById('step2').classList.add('active');
+
+    } else {
+      // Archivo 1: headers en fila 4 (índice 4), saltamos las primeras 4
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const raw = XLSX.utils.sheet_to_json(ws, { defval: '', header: 1 });
+      const headers = raw[4]; // fila 4 = headers reales
+      const rows = raw.slice(5).map(row => {
+        const obj = {};
+        headers.forEach((h, i) => { obj[h] = row[i] ?? ''; });
+        return obj;
+      });
+      data1 = rows;
+      showInfo('info1', 'drop1', 'step2', file.name, data1.length, 'Archivo 1 listo ✓');
+    }
+
+    checkReady();
+    setStatus('');
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function showInfo(infoId, dropId, stepId, name, count, msg) {
+  const info = document.getElementById(infoId);
+  info.textContent = `📁 ${name} — ${count.toLocaleString('es-AR')} filas`;
+  info.classList.add('show');
+  document.getElementById(dropId).classList.add('loaded');
+  document.getElementById(dropId).querySelector('.drop-label').innerHTML = `<strong style="color:#22c55e">${msg}</strong>`;
+  document.getElementById(stepId).classList.remove('active');
+  document.getElementById(stepId).classList.add('done');
+}
+
+function checkReady() {
+  const ok = data1 !== null && data2 !== null;
+  document.getElementById('btnFiltrar').disabled = !ok;
+}
+
+// ── Filtrar ───────────────────────────────────────────────────
+function filtrar() {
+  if (!data1 || !data2) return;
+
+  setProgress(10, 'Extrayendo SKUs del Archivo 2...');
+
+  // 1. Obtener SKUs únicos del Archivo 2
+  // La columna puede llamarse "Código" o "Codigo" o "SKU"
+  const codigoCols2 = Object.keys(data2[0]).filter(k =>
+    /c[oó]digo|sku/i.test(k)
+  );
+  const colCodigo2 = codigoCols2[0] || Object.keys(data2[0])[1];
+
+  const skusPromo = new Set(
+    data2.map(r => String(r[colCodigo2] ?? '').trim()).filter(Boolean)
+  );
+
+  setProgress(30, `${skusPromo.size} SKUs promocionales detectados...`);
+
+  // 2. Encontrar columna Código en Archivo 1
+  const codigoCols1 = Object.keys(data1[0]).filter(k =>
+    /c[oó]digo|sku/i.test(k)
+  );
+  const colCodigo1 = codigoCols1[0] || Object.keys(data1[0])[0];
+
+  // 3. Filtrar Archivo 1: solo filas cuyo código está en el set de promos
+  // y solo las columnas que necesitamos
+  const COLS_NECESARIAS = ['Código', 'EAN', 'Precio', 'Precio Fide', 'Sección', 'Familia'];
+
+  setProgress(55, 'Filtrando filas del catálogo...');
+
+  const filtrado = data1
+    .filter(r => {
+      const cod = String(r[colCodigo1] ?? '').trim();
+      return cod && skusPromo.has(cod);
+    })
+    .map(r => {
+      const obj = {};
+      COLS_NECESARIAS.forEach(col => {
+        // Buscar la columna ignorando mayúsculas/minúsculas y espacios
+        const key = Object.keys(r).find(k => k.trim() === col) || col;
+        obj[col] = r[key] ?? '';
+      });
+      return obj;
+    });
+
+  setProgress(75, 'Generando archivo Excel reducido...');
+
+  // 4. Calcular SKUs del Archivo 2 que NO están en Archivo 1
+  const codsA1 = new Set(
+    data1.map(r => String(r[colCodigo1] ?? '').trim())
+  );
+  const sinPar = [...skusPromo].filter(s => !codsA1.has(s));
+
+  // 5. Generar Excel
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.json_to_sheet(filtrado);
+
+  // Ancho de columnas
+  ws['!cols'] = [
+    { wch: 10 }, { wch: 16 }, { wch: 12 }, { wch: 12 }, { wch: 22 }, { wch: 22 }
+  ];
+
+  XLSX.utils.book_append_sheet(wb, ws, 'Archivo1_Reducido');
+  XLSX.writeFile(wb, 'Archivo1_Reducido.xlsx');
+
+  setProgress(100, '');
+
+  // 6. Mostrar resultado
+  showLog({
+    skusPromo: skusPromo.size,
+    filasOriginal: data1.length,
+    filasFiltradas: filtrado.length,
+    sinPar: sinPar.length,
+    reduccion: Math.round((1 - filtrado.length / data1.length) * 100)
+  });
+
+  document.getElementById('btnReset').classList.add('show');
+  setStatus('');
+}
+
+function showLog({ skusPromo, filasOriginal, filasFiltradas, sinPar, reduccion }) {
+  const box = document.getElementById('logBox');
+  const lines = document.getElementById('logLines');
+  box.classList.add('show');
+
+  lines.innerHTML = `
+    <div class="log-line">
+      <span>SKUs en el Archivo 2 (universo promo)</span>
+      <span class="val">${skusPromo.toLocaleString('es-AR')}</span>
+    </div>
+    <div class="log-line">
+      <span>Filas originales del Archivo 1</span>
+      <span class="val">${filasOriginal.toLocaleString('es-AR')}</span>
+    </div>
+    <div class="log-line">
+      <span>Filas en el Archivo 1 reducido</span>
+      <span class="val green">${filasFiltradas.toLocaleString('es-AR')}</span>
+    </div>
+    <div class="log-line">
+      <span>Reducción de tamaño</span>
+      <span class="val green">−${reduccion}%</span>
+    </div>
+    <div class="log-line">
+      <span>SKUs de promo sin par en Archivo 1</span>
+      <span class="val ${sinPar > 0 ? 'yellow' : 'green'}">${sinPar.toLocaleString('es-AR')}</span>
+    </div>
+    <div class="log-line" style="margin-top:8px; padding-top:12px; border-top: 1px solid #252840;">
+      <span>✅ Archivo generado</span>
+      <span class="val green">Archivo1_Reducido.xlsx</span>
+    </div>
+  `;
+}
+
+// ── Utils ──────────────────────────────────────────────────────
+function setProgress(pct, msg) {
+  const wrap = document.getElementById('progressWrap');
+  wrap.classList.add('show');
+  document.getElementById('progressBar').style.width = pct + '%';
+  if (msg) setStatus(msg);
+  if (pct >= 100) {
+    setTimeout(() => wrap.classList.remove('show'), 800);
+  }
+}
+
+function setStatus(msg) {
+  document.getElementById('statusMsg').textContent = msg;
+}
+
+function reset() {
+  data1 = null;
+  data2 = null;
+  location.reload();
+}
+</script>
+</body>
+</html>
